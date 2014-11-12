@@ -111,8 +111,16 @@ class FileSystem implements DriverInterface
                                       'dirPermissions' => 0770,
                                       'dirSplit' => 2,
                                       'memKeyLimit' => 20,
-                                      'keyHashFunction' => 'md5'
+                                      'keyHashFunction' => 'md5',
+                                      'printComments' => true,
     );
+
+    /**
+     * Should comments be added to cache files.
+     *
+     * @var bool
+     */
+    protected $printComments;
 
     /**
      * Requests a list of options.
@@ -147,6 +155,7 @@ class FileSystem implements DriverInterface
         }
 
         $this->memStoreLimit = (int) $options['memKeyLimit'];
+        $this->printComments = (bool) $options['printComments'];
 
         Utilities::checkFileSystemPermissions($this->cachePath, $this->dirPermissions);
     }
@@ -249,15 +258,18 @@ class FileSystem implements DriverInterface
             }
         }
 
-        $storeString = '<?php ' . PHP_EOL
-            . '/* Cachekey: ' . str_replace('*/', '', $this->makeKeyString($key)) . ' */' . PHP_EOL
-            . '/* Type: ' . gettype($data) . ' */' . PHP_EOL
-            . '/* Expiration: ' . (isset($expiration) ? date(DATE_W3C, $expiration) : 'none') . ' */' . PHP_EOL
-            . PHP_EOL
-            . PHP_EOL
-            . PHP_EOL
-            . '$loaded = true;' . PHP_EOL;
+        $storeString = '<?php ' . PHP_EOL;
 
+        if ($this->printComments) {
+            $storeString .=
+                '/* Cachekey: ' . str_replace('*/', '', $this->makeKeyString($key)) . ' */' . PHP_EOL
+                . '/* Type: ' . gettype($data) . ' */' . PHP_EOL
+                . '/* Expiration: ' . (isset($expiration) ? date(DATE_W3C, $expiration) : 'none') . ' */' . PHP_EOL
+                . PHP_EOL
+                . PHP_EOL;
+        }
+
+        $storeString .= '$loaded = true;' . PHP_EOL;
         if (isset($expiration)) {
             $storeString .= '$expiration = ' . $expiration . ';' . PHP_EOL;
         }
@@ -270,13 +282,20 @@ class FileSystem implements DriverInterface
             foreach ($data as $key => $value) {
                 $dataString = $this->encode($value);
                 $storeString .= PHP_EOL;
-                $storeString .= '/* Child Type: ' . gettype($value) . ' */' . PHP_EOL;
+
+                if ($this->printComments) {
+                    $storeString .= '/* Child Type: ' . gettype($value) . ' */' . PHP_EOL;
+                }
+
                 $storeString .= "\$data['{$key}'] = {$dataString};" . PHP_EOL;
             }
         } else {
 
             $dataString = $this->encode($data);
-            $storeString .= '/* Type: ' . gettype($data) . ' */' . PHP_EOL;
+            if ($this->printComments) {
+                $storeString .= '/* Type: ' . gettype($data) . ' */' . PHP_EOL;
+            }
+
             $storeString .= "\$data = {$dataString};" . PHP_EOL;
         }
 
